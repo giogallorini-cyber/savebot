@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaveBot</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>📱 SaveBot</h1>
+            <p>Everything you save, organized.</p>
+        </header>
+
+        <div class="filters">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="recipe">📝 Recipe</button>
+            <button class="filter-btn" data-filter="todo">✓ Todo</button>
+            <button class="filter-btn" data-filter="idea">💡 Idea</button>
+            <button class="filter-btn" data-filter="reminder">🔔 Reminder</button>
+        </div>
+
+        <div class="saves-container" id="savesContainer">
+            <p class="empty-state">No saves yet. Text SaveBot to get started!</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
