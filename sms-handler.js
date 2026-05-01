@@ -1,11 +1,21 @@
 const axios = require('axios');
 
+function cleanInstagramUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch (e) {
+    return url;
+  }
+}
+
 async function scrapeInstagramReel(url) {
+  const cleanUrl = cleanInstagramUrl(url);
   try {
     const response = await axios.post(
       `https://api.apify.com/v2/acts/xMc5Ga1oCONPmWJIa/run-sync-get-dataset-items?token=${process.env.APIFY_TOKEN}`,
       {
-        directUrls: [url],
+        directUrls: [cleanUrl],
         downloadVideos: false,
         includeTranscript: true
       },
@@ -32,7 +42,7 @@ async function fetchUrlContext(url) {
   try {
     if (url.includes('instagram.com')) {
       const reelData = await scrapeInstagramReel(url);
-      if (reelData) {
+      if (reelData && (reelData.caption || reelData.transcript)) {
         return `Instagram reel by @${reelData.author}. Caption: "${reelData.caption}". Transcript: "${reelData.transcript}". Hashtags: ${reelData.hashtags}`;
       }
       return '';
@@ -55,7 +65,8 @@ async function fetchUrlContext(url) {
 async function interpretWithClaude(text) {
   let urlContext = '';
   const urlMatch = text.match(/https?:\/\/[^\s]+/);
-  const isBareLink = urlMatch && text.trim() === urlMatch[0].trim();
+  const textWithoutUrl = urlMatch ? text.replace(urlMatch[0], '').trim() : text;
+  const isBareLink = urlMatch && textWithoutUrl.length === 0;
 
   if (urlMatch) {
     urlContext = await fetchUrlContext(urlMatch[0]);
@@ -65,7 +76,8 @@ async function interpretWithClaude(text) {
 
 Someone texted you: "${text}"
 ${urlContext ? `\nContext from the link: "${urlContext}"` : ''}
-${isBareLink && !urlContext ? '\nNote: This is a bare link with no additional context.' : ''}
+${textWithoutUrl ? `\nUser added this context: "${textWithoutUrl}"` : ''}
+${isBareLink && !urlContext ? '\nNote: This is a bare link with no additional context. Make your best guess based on the URL structure.' : ''}
 
 CATEGORY RULES (pick exactly one):
 - "todo" → any action, task, or reminder. Examples: "remember to call mom", "thank God", "pick up package"
@@ -73,10 +85,12 @@ CATEGORY RULES (pick exactly one):
 - "restaurant" → any restaurant, cafe, bar, or food spot to visit
 - "video-inspo" → ONLY if user explicitly mentions video, style, aesthetic, or content creation
 - "music" → song lyrics, music ideas, artists
-- "idea" → a thought, quote, creative idea, or bare link with no context
+- "idea" → a thought, quote, or creative idea
 - "product" → something to buy
 - "article" → something to read
 - "place" → non-food location to visit
+
+IMPORTANT: If there is no context and no caption/transcript from the link, default to "idea" — do NOT guess video-inspo.
 
 TITLE RULES:
 - Be descriptive and human, not just the URL
