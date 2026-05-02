@@ -9,6 +9,11 @@ function cleanInstagramUrl(url) {
   }
 }
 
+function extractUserContext(text, url) {
+  if (!url) return text;
+  return text.replace(url, '').trim();
+}
+
 async function scrapeInstagramReel(url) {
   const cleanUrl = cleanInstagramUrl(url);
   try {
@@ -47,7 +52,6 @@ async function fetchUrlContext(url) {
       }
       return '';
     }
-
     const response = await axios.get(url, {
       timeout: 5000,
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SaveBot/1.0)' }
@@ -63,43 +67,38 @@ async function fetchUrlContext(url) {
 }
 
 async function interpretWithClaude(text) {
-  let urlContext = '';
   const urlMatch = text.match(/https?:\/\/[^\s]+/);
-  const textWithoutUrl = urlMatch ? text.replace(urlMatch[0], '').trim() : text;
-  const isBareLink = urlMatch && textWithoutUrl.length === 0;
+  const url = urlMatch ? urlMatch[0] : null;
+  const userContext = url ? extractUserContext(text, url) : text;
+  const isBareLink = url && userContext.length === 0;
+  let linkContext = '';
 
-  if (urlMatch) {
-    urlContext = await fetchUrlContext(urlMatch[0]);
+  if (url) {
+    linkContext = await fetchUrlContext(url);
   }
 
-  const prompt = `You are SaveBot, an extremely intelligent personal assistant that categorizes things people want to remember or act on.
+  const prompt = `You are SaveBot, an intelligent personal assistant that categorizes saved content.
 
-Someone texted you: "${text}"
-${urlContext ? `\nContext from the link: "${urlContext}"` : ''}
-${textWithoutUrl ? `\nUser added this context: "${textWithoutUrl}"` : ''}
-${isBareLink && !urlContext ? '\nNote: This is a bare link with no additional context. Make your best guess based on the URL structure.' : ''}
+INCOMING MESSAGE: "${text}"
+${userContext ? `USER CONTEXT WORDS: "${userContext}" ← USE THESE AS PRIMARY SIGNAL` : ''}
+${linkContext ? `LINK CONTENT: "${linkContext}"` : ''}
+${isBareLink && !linkContext ? 'NOTE: Bare link, no context available.' : ''}
 
-CATEGORY RULES (pick exactly one):
-- "todo" → any action, task, or reminder. Examples: "remember to call mom", "thank God", "pick up package"
-- "recipe" → any food or meal to make at home
-- "restaurant" → any restaurant, cafe, bar, or food spot to visit
-- "video-inspo" → ONLY if user explicitly mentions video, style, aesthetic, or content creation
-- "music" → song lyrics, music ideas, artists
-- "idea" → a thought, quote, or creative idea
-- "product" → something to buy
-- "article" → something to read
-- "place" → non-food location to visit
+CRITICAL RULES:
+- If the user wrote "recipe", "make this", "cook this", "food" → category MUST be "recipe"
+- If the user wrote "try this place", "restaurant", "eat here", "taco", "food spot" → category MUST be "restaurant"  
+- If the user wrote "todo", "remember", "don't forget", "remind me" → category MUST be "todo"
+- If the user wrote "buy this", "want this", "product" → category MUST be "product"
+- If the user wrote "video", "style", "aesthetic", "content" → category MUST be "video-inspo"
+- If the user wrote "music", "song", "lyric", "beat" → category MUST be "music"
+- If there is no user context AND no link content → category = "idea"
+- Use link content as secondary signal only when no user context exists
 
-IMPORTANT: If there is no context and no caption/transcript from the link, default to "idea" — do NOT guess video-inspo.
+CATEGORIES: todo, recipe, restaurant, video-inspo, music, idea, product, article, place
 
-TITLE RULES:
-- Be descriptive and human, not just the URL
-- For todos: start with a verb
-- For recipes: name the dish
-- For restaurants: name the place if known
-- Max 60 characters
+TITLE: Be specific and human. Max 60 chars. For recipes name the dish. For todos start with a verb.
 
-Respond with ONLY raw JSON, no markdown, no backticks:
+Respond with ONLY raw JSON:
 {
   "category": "...",
   "title": "...",
